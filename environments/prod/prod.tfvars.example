@@ -1,0 +1,95 @@
+# SaaS Production Environment Variables
+# Copy this file to prod.tfvars and fill in / confirm the values.
+#   cp prod.tfvars.example prod.tfvars
+# NOTE: *.tfvars is gitignored (may contain sensitive data) - never commit prod.tfvars.
+
+# --- Core (Phase 1) ---
+project     = "saas"
+environment = "prod"
+aws_region  = "eu-north-1"
+aws_profile = "terraform-ci"
+
+# --- Phase 2: Network ---
+# Dedicated prod VPC. CIDR must not overlap staging (10.0.0.0/16) or dev (10.1.0.0/16).
+vpc_cidr_block = "10.2.0.0/16"
+
+# VPC endpoints - all six are missing in the prod VPC, so all default to true.
+# Flip an individual one to false only if it gets created out-of-band.
+create_kms_endpoint            = true
+create_secretsmanager_endpoint = true
+create_ecr_api_endpoint        = true
+create_ecr_dkr_endpoint        = true
+create_logs_endpoint           = true
+create_s3_gateway_endpoint     = true
+# Interface endpoint ENIs in a single AZ for cost. Empty = private_subnet_ids[0]
+# (eu-north-1a). Set explicitly only to override.
+vpc_interface_endpoint_subnet_ids = []
+
+# --- Phase 3: Security groups ---
+container_port          = 3000
+alb_ingress_cidr_blocks = ["0.0.0.0/0"]
+
+# --- Phase 4: Secrets + KMS ---
+app_secret_name      = "saas/prod/app"
+tenant_secret_prefix = "saas/prod/tenant/"
+# Extra CMK administrators (cannot decrypt). Empty = account root only.
+kms_admin_principal_arns = []
+# CloudTrail for the human-secret-access alarm (none exists in the account yet).
+create_cloudtrail                  = true
+existing_cloudtrail_log_group_name = ""
+
+# --- Phase 5: Data + buckets ---
+db_instance_identifier      = "db-postgresql-saas-prod"
+db_name                     = "saasprodpsqldb"
+db_username                 = "postgres_admin"
+db_instance_class           = "db.t4g.small"
+rds_multi_az                = false # single-AZ for cost
+rds_backup_retention_period = 7     # >0 enables PITR
+rds_deletion_protection     = true
+
+redis_node_type                  = "cache.t4g.micro"
+redis_transit_encryption_enabled = false # in-transit OFF; auth_token only valid when true
+# redis_auth_token               = null  # set ONLY if redis_transit_encryption_enabled = true
+
+s3_bucket_names = {
+  static_assets  = "saas-prod-static-assets"
+  media_assets   = "saas-prod-media-assets"
+  knowledge_base = "saas-prod-knowledge-base"
+}
+
+# --- Phase 6: ECR + ACM certs ---
+route53_zone_name   = "example.com"
+ecr_repository_name = "saas-prod-api"
+api_domain_name     = "api.example.com"
+app_domain_name     = "app.example.com"
+
+# --- Phase 7: ECS + ALB ---
+api_image_tag     = "latest"
+ecs_task_cpu      = 2048 # 2 vCPU
+ecs_task_memory   = 4096 # 4 GB
+ecs_desired_count = 0 # deploy nothing until migrations run
+ecs_min_capacity  = 0
+ecs_max_capacity  = 4
+ecs_container_insights = "enabled"
+ecs_log_retention_days = 90
+tenant_domains    = [] # e.g. ["demo1.example.com", "agency.customer.example"]
+# Worker-autoscaler: queues to exclude from backlog (e.g. WhatsApp broadcast queue).
+autoscaler_exclude_queues = "" # TODO: set the real queue name
+# container_secrets: ENV_VAR -> JSON key in saas/prod/app. Confirm against the app.
+# (defaults cover the 7 scalar keys; DB creds handled separately - see notes)
+
+# --- Phase 8: Amplify (web frontend) ---
+amplify_app_name    = "saas-prod-web"
+amplify_repository  = "https://github.com/your-org/saas-app"
+amplify_branch_name = "prod"
+# Per-tenant custom root domains (empty by default). e.g.:
+# amplify_custom_domains = { "acme.com" = { prefix = "crm" } }   # -> crm.acme.com
+amplify_custom_domains = {}
+# github_access_token: set in prod.tfvars (gitignored) or export TF_VAR_github_access_token.
+# Never commit a real token. e.g. github_access_token = "ghp_xxx"
+
+# --- Temporary: SSM bastion for one-time DB bootstrap (destroy after use) ---
+create_bastion = false
+
+# Additional variables will be added here as later phases (ECS, Amplify, ...)
+# are introduced.
