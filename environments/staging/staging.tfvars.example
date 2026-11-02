@@ -1,0 +1,36 @@
+# SaaS Staging Environment Variables
+# Copy this file to staging.tfvars and fill in the values
+
+project     = "saas"
+environment = "stg"
+aws_region  = "eu-north-1"
+
+# VPC Configuration
+vpc_cidr_block = "10.0.0.0/16"
+
+# EC2 Configuration
+instance_type = "t3a.small"  # or "t3a.medium" for better performance
+
+# Key Pair Configuration
+# You need to provide the public key content for saas-stg-server-keypair
+# Generate a key pair first: ssh-keygen -t rsa -b 4096 -f saas-stg-server-keypair
+# Then paste the public key content here
+public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC... your-public-key-here"
+
+# S3 Configuration
+s3_bucket_name = "saas-stg-s3"
+
+# RDS Configuration
+# Note: Password is managed by AWS Secrets Manager (most secure)
+# RDS will automatically generate and manage the password
+db_instance_identifier = "db-postgresql-saas-stg"
+db_name     = "saas-stg-psql-db"
+db_username = "postgres-admin"
+db_parameter_group_name = "default.postgres17"
+
+# RDS Instance Class (db.t4g.micro - ARM-based, cost-effective)
+db_instance_class = "db.t4g.micro"
+
+# RDS Storage (Free Tier: 20 GB)
+db_allocated_storage = 20
+
